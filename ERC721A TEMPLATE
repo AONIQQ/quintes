@@ -2379,9 +2379,12 @@ contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
     bool public gtdPhaseActive = false;
     bool public fcfsPhaseActive = false;
 
-    // 1 wallet = 1 mint in GTD and 1 wallet = 1 mint in FCFS
+    // Phase tracking (for analytics / UI)
     mapping(address => bool) public gtdMinted;
     mapping(address => bool) public fcfsMinted;
+
+    // Global per-wallet limit: one wallet = one NFT total
+    mapping(address => bool) public hasMinted;
 
     constructor() ERC721A("Quintes", "QUINTES") {}
 
@@ -2402,7 +2405,7 @@ contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
 
     /**
      * @notice Guaranteed mint phase (GTD).
-     * Each allowlisted wallet can mint exactly 1 NFT.
+     * One wallet = one NFT total across the whole drop.
      * Allowlist is Merkle-based; leaf = keccak256(abi.encodePacked(wallet)).
      */
     function mintGTD(bytes32[] calldata merkleProof)
@@ -2412,8 +2415,8 @@ contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
         supplyCompliance(1)
     {
         require(gtdPhaseActive, "GTD phase not active");
-        require(!gtdMinted[msg.sender], "GTD already minted");
-        require(msg.value == price * 1, "Incorrect ETH amount");
+        require(!hasMinted[msg.sender], "Wallet already minted");
+        require(msg.value == price, "Incorrect ETH amount");
 
         // Verify allowlist membership
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
@@ -2423,12 +2426,13 @@ contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
         );
 
         gtdMinted[msg.sender] = true;
+        hasMinted[msg.sender] = true;
         _safeMint(msg.sender, 1);
     }
 
     /**
      * @notice First-come-first-served phase (FCFS).
-     * Any wallet can mint at most 1 NFT, subject to remaining supply.
+     * Any wallet can mint at most 1 NFT total (if they did NOT mint in GTD).
      * Leftover GTD supply + FCFS allocation all come from the same pool.
      */
     function mintFCFS()
@@ -2438,14 +2442,11 @@ contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
         supplyCompliance(1)
     {
         require(fcfsPhaseActive, "FCFS phase not active");
-        require(!fcfsMinted[msg.sender], "FCFS already minted");
-        require(msg.value == price * 1, "Incorrect ETH amount");
-
-        // If you ever want to prevent double-dipping across phases,
-        // uncomment the next line:
-        // require(!gtdMinted[msg.sender], "Already minted in GTD");
+        require(!hasMinted[msg.sender], "Wallet already minted");
+        require(msg.value == price, "Incorrect ETH amount");
 
         fcfsMinted[msg.sender] = true;
+        hasMinted[msg.sender] = true;
         _safeMint(msg.sender, 1);
     }
 
@@ -2453,7 +2454,9 @@ contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
 
     /**
      * @notice Owner mint to a single address, arbitrary quantity.
-     * Can be used for company reserve (e.g. 250 NFTs to treasury wallet).
+     * Used for company reserve (e.g. 250 NFTs to treasury wallet), special wallets, etc.
+     * NOTE: This function does NOT enforce the 1-per-wallet rule on the recipient,
+     * so use it carefully for internal / treasury / special cases only.
      */
     function ownerMint(address to, uint256 quantity)
         external
@@ -2466,7 +2469,7 @@ contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
     /**
      * @notice Batch airdrop for GTD wallets.
      * Mints 1 NFT to each address.
-     * Marks them as GTD-minted (so they cannot also call mintGTD).
+     * Enforces one wallet = one NFT total across the drop.
      * Useful to fulfill collab / ambassador allocations in one transaction.
      */
     function airdropGTD(address[] calldata recipients)
@@ -2479,9 +2482,10 @@ contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
 
         for (uint256 i = 0; i < count; ++i) {
             address to = recipients[i];
-            require(!gtdMinted[to], "Recipient already GTD minted");
+            require(!hasMinted[to], "Recipient already minted");
 
             gtdMinted[to] = true;
+            hasMinted[to] = true;
             _safeMint(to, 1);
         }
     }
@@ -2544,6 +2548,7 @@ contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
         uint256 supply = _nextTokenId(); // exclusive upper bound
 
         while (currentTokenId < supply && ownedTokenIndex < ownerTokenCount) {
+            // If you ever introduce burns, you may want to gate with _exists(currentTokenId)
             if (ownerOf(currentTokenId) == _owner) {
                 ownedTokenIds[ownedTokenIndex] = currentTokenId;
                 ownedTokenIndex++;

@@ -469,3 +469,67 @@ After this:
 
   * ERC721A for batch mints and airdrops.
   * Multi-mint owner functions for company reserve.
+
+
+
+
+### 7.2 Rebasing Roadmap And Marketing Alignment
+
+The current QuintesNFT contract is intentionally simple, but it is designed to plug cleanly into the “rebasing NFT” strategy described in the Quintes marketing plan.
+
+In this context, “rebasing” means:
+
+* NFTs are issued now as long-term identity keys.
+* Future contracts and airdrops can target these original holders.
+* Narrative or utility “upgrades” can be delivered over time (new NFTs, new traits, protocol access), while preserving the original collection as the canonical genesis set.
+
+The current design supports that in several ways.
+
+1. Stable, one-per-wallet base layer
+
+* Each user wallet can hold at most one Quintes NFT from the main collection.
+* This makes the holder set clean and easy to reason about for:
+
+  * Snapshotting holders for airdrops.
+  * Calculating on-chain engagement metrics.
+  * Designing fair “rebase” mechanics where every address has a single genesis identity.
+
+2. Snapshot-friendly architecture
+
+At any later point, Quintes can:
+
+* Take a snapshot of `QuintesNFT` holders (either off-chain via an indexer or on-chain via a script).
+* Use that snapshot as the basis for:
+
+  * A new “rebased” NFT collection.
+  * Evolving/alternate artwork drops.
+  * Access passes for the core protocol.
+  * Reward distributions tied to engagement, lore contests, or quests.
+
+Because the current contract does not bake in complex rebasing rules, it remains:
+
+* Easy to audit.
+* Easy to integrate with external protocols.
+* Flexible enough that multiple different “rebase” experiments can be tried later using new contracts and airdrops.
+
+3. Metadata and evolution hooks
+
+Even without a new contract, some rebasing-style mechanics can be simulated via metadata:
+
+* Pre-reveal and base URI controls allow:
+
+  * Staged reveals.
+  * Multi-phase art updates (for example, minor visual evolutions or trait tweaks).
+* Future extensions (in Milestone 4 or beyond) could introduce:
+
+  * Additional URIs or trait layers that reflect on-chain or off-chain achievements.
+  * Separate “evolution” contracts that read QuintesNFT ownership and serve upgraded metadata.
+
+For Milestone 1 and 2, these mechanisms are kept out of the core contract on purpose. The first priority is a clean, predictable mint that:
+
+* Caps supply at 1,000.
+* Enforces one genesis NFT per wallet.
+* Makes it trivial to snapshot holders and run future rebases, airdrops, or evolutions as separate layers.
+
+This keeps the base contract stable while leaving room to build the full Berachain-style narrative and rebasing meta on top in later stages. 
+

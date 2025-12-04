@@ -2350,222 +2350,275 @@ abstract contract DefaultOperatorFilterer is OperatorFilterer {
 
     constructor() OperatorFilterer(DEFAULT_SUBSCRIPTION, true) {}
 }
-// File: contracts/DeSociety.sol
+// File: contracts/QuintesNFT.sol
 
 pragma solidity >=0.7.0 <0.9.0;
 
-contract DeSociety is ERC721A, Ownable, DefaultOperatorFilterer {
-  using Strings for uint256;
-  using Counters for Counters.Counter;
+contract QuintesNFT is ERC721A, Ownable, DefaultOperatorFilterer {
+    using Strings for uint256;
 
-  Counters.Counter private supply;
+    // ====== Metadata config ======
 
-  string public uriPrefix = "ipfs://QmTnTqrp6QneeQ3LDgPVDG1yPCRycdbecyb9DnDCrqUwUj/";
-  string public uriSuffix = ".json";
-  string public preRevealMetadataUri = "ipfs://Qmbr7rqsYEKMLkx81Bv7YtUmyuys8e4fQCJ4BQiALQByqg/preReveal.json";
-  
-  uint256 public maxSupply = 333;
-  uint256 public maxMintAmountPerTx = 10;
-  uint256 public whitelistAddressLimit = 10;
-  uint256 public publicAddressLimit = 10;
-  uint256 public price = 0.25 ether;
-  
-  bytes32 public merkleRoot = 0x0a1966149afedfb00a5b34d69cdee2fbee74773f723926abbed79a9cc55af3b6;
+    string public uriPrefix = "ipfs://YOUR_BASE_URI/";
+    string public uriSuffix = ".json";
+    string public preRevealMetadataUri = "ipfs://YOUR_PREREVEAL_URI.json";
 
-  bool public paused = false;
-  bool public revealed = false;
-  bool public publicMint = false;
+    // ====== Supply / pricing ======
 
-  mapping(address => uint256) public whitelistMintedBalance;
-  mapping(address => uint256) public publicMintedBalance;
- 
-  constructor() ERC721A("De Society", "DeSo") {
-  }
+    uint256 public maxSupply = 1000;
+    uint256 public price = 0 ether; // free mint by default
 
-  modifier mintCompliance(uint256 _mintAmount) {
-    require(!paused, "The contract is paused!");
-    require(supply.current() + _mintAmount <= maxSupply, "Max supply exceeded!");
-    require(_mintAmount <= maxMintAmountPerTx, "max NFT per transaction limit address exceeded");
-    _;
-  }
+    // ====== Phases ======
+    // GTD = guaranteed mint phase (allowlist / collabs / ambassadors)
+    // FCFS = first-come-first-served phase (public leftover pool)
 
-  function WhitelistMint(bytes32[] calldata _merkleProof, uint256 _mintAmount) public payable mintCompliance(_mintAmount) {
-    require(publicMint == false, "The public mint is live.");
-    require(msg.value >= price * _mintAmount, "Insufficient funds!");
-    require(whitelistMintedBalance[msg.sender]+ _mintAmount <= whitelistAddressLimit,"max NFT per address exceeded");
-    bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
-    require(MerkleProof.verify(_merkleProof, merkleRoot, leaf), "Invalid proof.");
-   
-    _whitelistMintLoop(msg.sender, _mintAmount);
-    whitelistMintedBalance[msg.sender] = whitelistMintedBalance[msg.sender] + _mintAmount;
-  }
+    bytes32 public gtdMerkleRoot; // Merkle root for GTD allowlist
 
-  function Mint(uint256 _mintAmount) public payable mintCompliance(_mintAmount) {
-    require(publicMint == true, "The whitelist mint is live.");
-    require(msg.value >= price * _mintAmount, "Insufficient funds!");
-    require(publicMintedBalance[msg.sender] + _mintAmount <= publicAddressLimit, "max NFT per address exceeded");   
-    _publicMintLoop(msg.sender, _mintAmount);
-    publicMintedBalance[msg.sender] = publicMintedBalance[msg.sender]+ _mintAmount;
-  }
-  
-  function mintForAddress(uint256 _mintAmount, address _receiver) public onlyOwner {
-    _mintForAddressLoop(_receiver, _mintAmount);
-}
+    bool public paused = false;
+    bool public revealed = false;
+    bool public gtdPhaseActive = false;
+    bool public fcfsPhaseActive = false;
 
-function _publicMintLoop(address _receiver, uint256 _mintAmount) internal {
-    for (uint256 i = 0; i < _mintAmount; i++) {
-        supply.increment();
-        _safeMint(_receiver, supply.current());
-    }
-}
+    // 1 wallet = 1 mint in GTD and 1 wallet = 1 mint in FCFS
+    mapping(address => bool) public gtdMinted;
+    mapping(address => bool) public fcfsMinted;
 
-function _whitelistMintLoop(address _receiver, uint256 _mintAmount) internal {
-    for (uint256 i = 0; i < _mintAmount; i++) {
-        supply.increment();
-        _safeMint(_receiver, supply.current());
-    }
-}
+    constructor() ERC721A("Quintes", "QUINTES") {}
 
-function _mintForAddressLoop(address _receiver, uint256 _mintAmount) internal {
-    for (uint256 i = 0; i < _mintAmount; i++) {
-        supply.increment();
-        _safeMint(_receiver, supply.current());
-    }
-}
+    // ====== Modifiers ======
 
-  function setmerkleRoot(bytes32 _merkleRoot) public onlyOwner {
-    merkleRoot = _merkleRoot;
-  }
-  
-  function setUriPrefix(string memory _uriPrefix) public onlyOwner {
-    uriPrefix = _uriPrefix;
-  }
-
-  function setUriSuffix(string memory _uriSuffix) public onlyOwner {
-    uriSuffix = _uriSuffix;
-  }
-
-  function setRevealed(bool _state) public onlyOwner {
-    revealed = _state;
-  }
-
-  function setPaused(bool _state) public onlyOwner {
-    paused = _state;
-  }
- 
-
-  function setPrice(uint256 _newPrice) public onlyOwner {
-    price = _newPrice;
-  }
-
-
-  function setPublicMint(bool _state) public onlyOwner {
-    publicMint = _state;
-  }
-
-  function setMaxMintAmountPerTx(uint256 _maxMintAmountPerTx) public onlyOwner {
-    maxMintAmountPerTx = _maxMintAmountPerTx;
-  }
-
-  function setPublicAddressLimit(uint256 _limit) public onlyOwner {
-    publicAddressLimit = _limit;
-  }
-
-   function setWhitelistAddressLimit(uint256 _limit) public onlyOwner {
-    whitelistAddressLimit = _limit;
-  }
-  
-  function setMaxSupply(uint256 _newSupply) public onlyOwner {
-    maxSupply = _newSupply;
-  }
-
-  function setPreRevealMetadataUri(string memory _preRevealMetadataUri) public onlyOwner {
-    preRevealMetadataUri = _preRevealMetadataUri;
-  }
-
- 
-
-  function walletOfOwner(address _owner)
-    public
-    view
-    returns (uint256[] memory)
-  {
-    uint256 ownerTokenCount = balanceOf(_owner);
-    uint256[] memory ownedTokenIds = new uint256[](ownerTokenCount);
-    uint256 currentTokenId = 1;
-    uint256 ownedTokenIndex = 0;
-
-    while (ownedTokenIndex < ownerTokenCount && currentTokenId <= maxSupply) {
-      address currentTokenOwner = ownerOf(currentTokenId);
-
-      if (currentTokenOwner == _owner) {
-        ownedTokenIds[ownedTokenIndex] = currentTokenId;
-
-        ownedTokenIndex++;
-      }
-
-      currentTokenId++;
+    modifier supplyCompliance(uint256 _mintAmount) {
+        require(_mintAmount > 0, "Mint amount is zero");
+        require(_totalMinted() + _mintAmount <= maxSupply, "Max supply exceeded");
+        _;
     }
 
-    return ownedTokenIds;
-  }
-
-function tokenURI(uint256 _tokenId)
-    public
-    view
-    virtual
-    override
-    returns (string memory)
-  {
-    require(
-      _exists(_tokenId),
-      "ERC721Metadata: URI query for nonexistent token"
-    );
-
-    if (revealed == false) {
-      return preRevealMetadataUri;
+    modifier notPaused() {
+        require(!paused, "Contract is paused");
+        _;
     }
 
-    string memory currentBaseURI = _baseURI();
-    return bytes(currentBaseURI).length > 0
-        ? string(abi.encodePacked(currentBaseURI, _tokenId.toString(), uriSuffix))
-        : "";
-  }
+    // ====== Public minting ======
 
-  function _baseURI() internal view virtual override returns (string memory) {
-    return uriPrefix;
-  }
+    /**
+     * @notice Guaranteed mint phase (GTD).
+     * Each allowlisted wallet can mint exactly 1 NFT.
+     * Allowlist is Merkle-based; leaf = keccak256(abi.encodePacked(wallet)).
+     */
+    function mintGTD(bytes32[] calldata merkleProof)
+        external
+        payable
+        notPaused
+        supplyCompliance(1)
+    {
+        require(gtdPhaseActive, "GTD phase not active");
+        require(!gtdMinted[msg.sender], "GTD already minted");
+        require(msg.value == price * 1, "Incorrect ETH amount");
 
+        // Verify allowlist membership
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
+        require(
+            MerkleProof.verify(merkleProof, gtdMerkleRoot, leaf),
+            "Not in GTD allowlist"
+        );
 
- function withdraw() public onlyOwner {
+        gtdMinted[msg.sender] = true;
+        _safeMint(msg.sender, 1);
+    }
 
-    uint256 _0250percent = address(this).balance*250/10000;
+    /**
+     * @notice First-come-first-served phase (FCFS).
+     * Any wallet can mint at most 1 NFT, subject to remaining supply.
+     * Leftover GTD supply + FCFS allocation all come from the same pool.
+     */
+    function mintFCFS()
+        external
+        payable
+        notPaused
+        supplyCompliance(1)
+    {
+        require(fcfsPhaseActive, "FCFS phase not active");
+        require(!fcfsMinted[msg.sender], "FCFS already minted");
+        require(msg.value == price * 1, "Incorrect ETH amount");
 
-    uint256 _925percent = address(this).balance*9250/10000;
+        // If you ever want to prevent double-dipping across phases,
+        // uncomment the next line:
+        // require(!gtdMinted[msg.sender], "Already minted in GTD");
 
-    require(payable(0x0c3730530c418aC6903fA43bcA6d4A9813643eC3).send(_0250percent));
+        fcfsMinted[msg.sender] = true;
+        _safeMint(msg.sender, 1);
+    }
 
-    require(payable(0xebAFe63548d02168D2403D2B1e38F4ce866757A5).send(_0250percent));
+    // ====== Owner / backend minting (for Quintes reserves, collabs, etc.) ======
 
-    require(payable(0x63598979D46fa023474D0f73CB35eCD00814429F).send(_0250percent));
+    /**
+     * @notice Owner mint to a single address, arbitrary quantity.
+     * Can be used for company reserve (e.g. 250 NFTs to treasury wallet).
+     */
+    function ownerMint(address to, uint256 quantity)
+        external
+        onlyOwner
+        supplyCompliance(quantity)
+    {
+        _safeMint(to, quantity);
+    }
 
-    require(payable(0x39b47d0bDD1b48d2dbF4D57E5b37F19Bbbc95534).send(_925percent));
-    }   
+    /**
+     * @notice Batch airdrop for GTD wallets.
+     * Mints 1 NFT to each address.
+     * Marks them as GTD-minted (so they cannot also call mintGTD).
+     * Useful to fulfill collab / ambassador allocations in one transaction.
+     */
+    function airdropGTD(address[] calldata recipients)
+        external
+        onlyOwner
+    {
+        uint256 count = recipients.length;
+        require(count > 0, "No recipients");
+        require(_totalMinted() + count <= maxSupply, "Max supply exceeded");
 
+        for (uint256 i = 0; i < count; ++i) {
+            address to = recipients[i];
+            require(!gtdMinted[to], "Recipient already GTD minted");
 
- function setApprovalForAll(address operator, bool approved) public override onlyAllowedOperatorApproval(operator) {
+            gtdMinted[to] = true;
+            _safeMint(to, 1);
+        }
+    }
+
+    // ====== Admin config ======
+
+    function setGtdMerkleRoot(bytes32 _root) external onlyOwner {
+        gtdMerkleRoot = _root;
+    }
+
+    function setUriPrefix(string memory _uriPrefix) external onlyOwner {
+        uriPrefix = _uriPrefix;
+    }
+
+    function setUriSuffix(string memory _uriSuffix) external onlyOwner {
+        uriSuffix = _uriSuffix;
+    }
+
+    function setPreRevealMetadataUri(string memory _preRevealMetadataUri) external onlyOwner {
+        preRevealMetadataUri = _preRevealMetadataUri;
+    }
+
+    function setRevealed(bool _state) external onlyOwner {
+        revealed = _state;
+    }
+
+    function setPaused(bool _state) external onlyOwner {
+        paused = _state;
+    }
+
+    function setPrice(uint256 _newPrice) external onlyOwner {
+        price = _newPrice;
+    }
+
+    function setMaxSupply(uint256 _newSupply) external onlyOwner {
+        require(_newSupply >= _totalMinted(), "New maxSupply < minted");
+        maxSupply = _newSupply;
+    }
+
+    function setGtdPhaseActive(bool _state) external onlyOwner {
+        gtdPhaseActive = _state;
+    }
+
+    function setFcfsPhaseActive(bool _state) external onlyOwner {
+        fcfsPhaseActive = _state;
+    }
+
+    // ====== View helpers ======
+
+    function walletOfOwner(address _owner)
+        public
+        view
+        returns (uint256[] memory)
+    {
+        uint256 ownerTokenCount = balanceOf(_owner);
+        uint256[] memory ownedTokenIds = new uint256[](ownerTokenCount);
+
+        uint256 currentTokenId = _startTokenId();
+        uint256 ownedTokenIndex = 0;
+        uint256 supply = _nextTokenId(); // exclusive upper bound
+
+        while (currentTokenId < supply && ownedTokenIndex < ownerTokenCount) {
+            if (ownerOf(currentTokenId) == _owner) {
+                ownedTokenIds[ownedTokenIndex] = currentTokenId;
+                ownedTokenIndex++;
+            }
+            currentTokenId++;
+        }
+
+        return ownedTokenIds;
+    }
+
+    function tokenURI(uint256 _tokenId)
+        public
+        view
+        virtual
+        override
+        returns (string memory)
+    {
+        require(_exists(_tokenId), "URI query for nonexistent token");
+
+        if (!revealed) {
+            return preRevealMetadataUri;
+        }
+
+        string memory currentBaseURI = _baseURI();
+        return bytes(currentBaseURI).length > 0
+            ? string(abi.encodePacked(currentBaseURI, _tokenId.toString(), uriSuffix))
+            : "";
+    }
+
+    function _baseURI() internal view virtual override returns (string memory) {
+        return uriPrefix;
+    }
+
+    // ====== Withdraw ======
+
+    function withdraw() external onlyOwner {
+        uint256 balance = address(this).balance;
+        (bool success, ) = payable(owner()).call{value: balance}("");
+        require(success, "Withdraw failed");
+    }
+
+    // ====== Operator filter overrides (OpenSea etc.) ======
+
+    function setApprovalForAll(address operator, bool approved)
+        public
+        override
+        onlyAllowedOperatorApproval(operator)
+    {
         super.setApprovalForAll(operator, approved);
     }
 
-    function approve(address operator, uint256 tokenId) public override onlyAllowedOperatorApproval(operator)payable {
+    function approve(address operator, uint256 tokenId)
+        public
+        override
+        onlyAllowedOperatorApproval(operator)
+        payable
+    {
         super.approve(operator, tokenId);
     }
 
-    function transferFrom(address from, address to, uint256 tokenId) public override onlyAllowedOperator(from) payable {
+    function transferFrom(address from, address to, uint256 tokenId)
+        public
+        override
+        onlyAllowedOperator(from)
+        payable
+    {
         super.transferFrom(from, to, tokenId);
     }
 
-    function safeTransferFrom(address from, address to, uint256 tokenId) public override onlyAllowedOperator(from) payable{
+    function safeTransferFrom(address from, address to, uint256 tokenId)
+        public
+        override
+        onlyAllowedOperator(from)
+        payable
+    {
         super.safeTransferFrom(from, to, tokenId);
     }
 
@@ -2576,5 +2629,5 @@ function tokenURI(uint256 _tokenId)
         payable
     {
         super.safeTransferFrom(from, to, tokenId, data);
-    }  
+    }
 }

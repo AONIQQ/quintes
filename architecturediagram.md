@@ -1,3 +1,4 @@
+```mermaid
 graph TD
 
 %% Layers
@@ -39,3 +40,4 @@ Merkle -->|Proof| MintSite
 %% Flows: Metadata
 Contract -->|tokenURI()| IPFSBase
 Contract -->|preRevealMetadataUri| IPFSPre
+```
